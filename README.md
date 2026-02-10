@@ -17,7 +17,8 @@ You can compile the library with any compiler supporting C23 (`-std=c2x`). No fu
 ```c
 #include <stdio.h>
 
-// This includes the function implementations and only has to be done once per translation unit
+// This includes the function implementations and only has to be done once
+// per translation unit.
 #define CLAGS_IMPLEMENTATION
 #include "clags.h"
 
@@ -48,17 +49,22 @@ clags_config_t config = clags_config(args);
 int main(int argc, char **argv)
 {
     // Parse the arguments using the previously defined rules, returns the config on error
-    if (clags_parse(argc, argv, &config) != nullptr){
+    if (clags_parse(argc, argv, &config) != nullptr) {
         // Print an automatic usage, based on the defined config
         clags_usage(argv[0], &config);
         return 1;
     }
+
     // You can now use the set argument variables
-    if (help){
+    if (help) {
         clags_usage(argv[0], &config);
         return 0;
     }
-    printf("input: %s, output: %s, warnings:%s\n", input_file, output_file, warnings?"true":"false");
+
+    printf("input: %s, output: %s, warnings: %s\n",
+           input_file,
+           output_file,
+           warnings ? "true" : "false");
     return 0;
 }
 ```
