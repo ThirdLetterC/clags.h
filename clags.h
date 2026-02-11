@@ -26,141 +26,6 @@
   SOFTWARE.
 */
 
-/*
-  Clags Syntax Reference
-  ======================
-
-  Positional arguments
-  --------------------
-
-  <arg>        required positional argument
-  [arg]        optional positional argument
-
-  <arg..>      positional list argument (one or more values)
-  [arg..]      optional positional list argument
-
-
-  List Termination
-  ----------------
-
-  If a list terminator is configured (e.g. "::"):
-
-  <list1..> :: <list2..> :: [arg]
-
-  Without a terminator, a positional list must be last.
-
-
-  Options
-  -------
-
-  Options may appear anywhere while option parsing is enabled.
-
-  Long options:
-
-  --opt VALUE
-  --opt=VALUE
-
-  Short options:
-
-  -o VALUE  // separate argument
-  -oValue   // attached argument
-
-
-  Option Lists
-  ------------
-
-  If an option is configured as a list, each occurrence appends one value.
-
-  --file a --file b --file c
-  -f a -f b -f c
-
-  Comma-separated values are NOT supported.
-
-
-  Flags
-  -----
-
-  Flags do not take values.
-
-  Short flag:
-
-  -h
-
-  Long flag:
-
-  --help
-
-  Combined short flags:
-
-  -abc    ==  -a -b -c
-
-  Note: If a short option that takes a value appears in a combined group,
-        the rest of the string is treated as its argument:
-
-        -wovalue    // -w is a flag, -o consumes 'value'
-
-
-  Subcommands
-  -----------
-
-  Subcommands are positional arguments with their own config.
-
-  program <subcmd> [SUBCMD_ARGS]
-
-  Parsing continues in the selected subcommand's config.
-
-
-  Special Tokens
-  --------------
-
-  Option parsing toggle (`--`):
-
-  `--` disables option/flag parsing from this point onward.
-
-  If the config enables toggling, `--` can re-enable parsing.
-  This is an add-on feature of clags, not POSIX.
-
-  Ignored Arguments (`ignore_prefix`):
-
-  Arguments prefixed with the configured ignore prefix are ignored.
-
-  For example with the ignore prefix defined as "!":
-
-  !ignored  // argument is ignored
-
-
-  Value Types
-  -----------
-
-  This table describes the supported value types and their expected syntax.
-
-  Value Type    | Syntax / Examples           | Notes
-  --------------------------------------------------------------------------
-  string        | "hello", world              | Any sequence of characters.
-  Stored as `char*`. bool          | true, false, yes, N         |
-  Case-insensitive. Stored as `bool`.
-
-  int8/uint8/   | 0, -128, 127, 0x1F, 0b1010  | Signed and unsigned integers of
-  various sizes. int32/uint32/                               | Accepts decimal,
-  hex (0x), octal (0), and binary (0b) notation. int64/uint64 | Values must fit
-  in the type’s bounds. Stored as the respective `int<size>_t`.
-
-  double        | 3.14, -0.001, 2e10          | Floating-point value. Stored as
-  `double`. choice        | "red", "green", "blue"      | Must match one of the
-  configured choices. Case-sensitive by default, can be disabled. Stored as
-  `clags_choice_t*`. path          | /home/user/docs, C:\Windows | Any
-  filesystem path. Stored as `char*`. file          | /etc/passwd, myfile.txt |
-  Must be a regular file. Stored as `char*`. dir           | /tmp, C:\Users |
-  Must be a directory. Stored as `char*`. size          | 1024, 10KiB, 2MB |
-  Supports decimal and binary suffixes. Case-insensitive. Stored as
-  `clags_fsize_t`. time_s        | 10s, 5m, 2h                 | Time in
-  seconds; supports s/m/h/d suffixes. Case-insensitive. Stored as
-  `clags_time_t`. time_ns       | 100ns, 1us, 5ms, 2s         | Time in
-  nanoseconds; supports ns/us/ms/s/m/h/d suffixes. Case-insensitive. Stored as
-  `clags_time_t`. custom        | depends on user function    | Validation done
-  via a custom function pointer.
-*/
-
 #ifndef CLAGS_H
 #define CLAGS_H
 
@@ -868,13 +733,6 @@ void clags_sb_free(clags_sb_t *sb);
 
 #endif // CLAGS_H
 
-/*
-  The start of the implementation section.
-  Define `CLAGS_IMPLEMENTATION` to access, otherwise this file will act as a
-  regular header.
-*/
-#ifdef CLAGS_IMPLEMENTATION
-
 #define X(type, func, name) [type] = func,
 static clags_verify_func_ptr_t clags__verify_funcs[] = {clags__types};
 #undef X
@@ -883,9 +741,8 @@ static clags_verify_func_ptr_t clags__verify_funcs[] = {clags__types};
 static const char *clags__type_names[] = {clags__types};
 #undef X
 
-[[nodiscard]] static inline bool clags__checked_add_size(size_t *result,
-                                                         size_t lhs,
-                                                         size_t rhs) {
+[[nodiscard]] static inline bool
+clags__checked_add_size(size_t *result, size_t lhs, size_t rhs) {
 #if CLAGS_HAS_STDCKDINT
   return ckd_add(result, lhs, rhs);
 #elif defined(__GNUC__) || defined(__clang__)
@@ -898,9 +755,8 @@ static const char *clags__type_names[] = {clags__types};
 #endif
 }
 
-[[nodiscard]] static inline bool clags__checked_mul_size(size_t *result,
-                                                         size_t lhs,
-                                                         size_t rhs) {
+[[nodiscard]] static inline bool
+clags__checked_mul_size(size_t *result, size_t lhs, size_t rhs) {
 #if CLAGS_HAS_STDCKDINT
   return ckd_mul(result, lhs, rhs);
 #elif defined(__GNUC__) || defined(__clang__)
@@ -938,9 +794,8 @@ static inline const char *clags__strchrnull(const char *string, char c) {
   return s;
 }
 
-[[nodiscard]] static inline bool clags__next_capacity(size_t current,
-                                                      size_t required,
-                                                      size_t *next) {
+[[nodiscard]] static inline bool
+clags__next_capacity(size_t current, size_t required, size_t *next) {
   size_t capacity = current;
   if (capacity == 0)
     capacity = CLAGS_LIST_INIT_CAPACITY;
@@ -965,7 +820,7 @@ static inline void clags__sb_reserve(clags_sb_t *sb, size_t capacity) {
   size_t alloc_size = 0;
   clags_assert(
       !clags__checked_mul_size(&alloc_size, new_capacity, sizeof(*sb->items)),
-               "String builder allocation overflow!");
+      "String builder allocation overflow!");
   sb->items = CLAGS_REALLOC(sb->items, alloc_size);
   clags_assert(sb->items != nullptr, "Out of memory!");
   sb->capacity = new_capacity;
@@ -1075,18 +930,17 @@ void clags_log_sb(clags_config_t *config, clags_log_level_t level,
       allocs->item_size = sizeof(char *);
     if (allocs->count >= allocs->capacity) {
       size_t required_capacity = 0;
-      clags_assert(
-          !clags__checked_add_size(&required_capacity, allocs->count, (size_t)1),
-          "Allocation tracking capacity overflow!");
+      clags_assert(!clags__checked_add_size(&required_capacity, allocs->count,
+                                            (size_t)1),
+                   "Allocation tracking capacity overflow!");
       size_t new_capacity = 0;
-      clags_assert(
-          clags__next_capacity(allocs->capacity, required_capacity,
-                               &new_capacity),
-          "Allocation tracking capacity overflow!");
+      clags_assert(clags__next_capacity(allocs->capacity, required_capacity,
+                                        &new_capacity),
+                   "Allocation tracking capacity overflow!");
       size_t alloc_size = 0;
-      clags_assert(
-          !clags__checked_mul_size(&alloc_size, allocs->item_size, new_capacity),
-          "Allocation tracking size overflow!");
+      clags_assert(!clags__checked_mul_size(&alloc_size, allocs->item_size,
+                                            new_capacity),
+                   "Allocation tracking size overflow!");
       allocs->items = CLAGS_REALLOC(allocs->items, alloc_size);
       clags_assert(allocs->items != nullptr, "Out of memory!");
       allocs->capacity = new_capacity;
@@ -1543,13 +1397,13 @@ static inline bool clags__append_to_list(clags_config_t *config,
   size_t item_size = list->item_size;
   if (list->count >= list->capacity) {
     size_t required_capacity = 0;
-    clags_assert(!clags__checked_add_size(&required_capacity, list->count,
-                                          (size_t)1),
-                 "List capacity overflow!");
+    clags_assert(
+        !clags__checked_add_size(&required_capacity, list->count, (size_t)1),
+        "List capacity overflow!");
     size_t new_capacity = 0;
-    clags_assert(clags__next_capacity(list->capacity, required_capacity,
-                                      &new_capacity),
-                 "List capacity overflow!");
+    clags_assert(
+        clags__next_capacity(list->capacity, required_capacity, &new_capacity),
+        "List capacity overflow!");
     size_t alloc_size = 0;
     clags_assert(!clags__checked_mul_size(&alloc_size, new_capacity, item_size),
                  "List allocation size overflow!");
@@ -1561,8 +1415,8 @@ static inline bool clags__append_to_list(clags_config_t *config,
   clags_assert(!clags__checked_mul_size(&offset, item_size, list->count),
                "List offset overflow!");
   char *ptr = (char *)list->items;
-  if (clags__verify_funcs[value_type](config, arg_name, arg,
-                                      ptr + offset, data)) {
+  if (clags__verify_funcs[value_type](config, arg_name, arg, ptr + offset,
+                                      data)) {
     list->count++;
     return true;
   }
@@ -2427,5 +2281,3 @@ void clags_config_free(clags_config_t *config) {
         default : return "unknown error";
   }
 }
-
-#endif // CLAGS_IMPLEMENTATION

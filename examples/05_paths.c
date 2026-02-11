@@ -5,7 +5,6 @@
 
 #include <stdio.h>
 
-#define CLAGS_IMPLEMENTATION
 #include "../clags.h"
 
 const char *input_file = nullptr;

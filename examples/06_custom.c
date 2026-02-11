@@ -5,7 +5,6 @@
 
 #include <stdio.h>
 
-#define CLAGS_IMPLEMENTATION
 #include "../clags.h"
 
 // A custom verification function of type `clags_custom_verify_func_t`

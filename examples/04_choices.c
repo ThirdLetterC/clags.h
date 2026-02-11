@@ -8,7 +8,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#define CLAGS_IMPLEMENTATION
 #include "../clags.h"
 
 char *input = nullptr;

@@ -7,7 +7,6 @@
 #include <inttypes.h>
 #include <stdio.h>
 
-#define CLAGS_IMPLEMENTATION
 #include "../clags.h"
 
 clags_list_t string_list = clags_list();

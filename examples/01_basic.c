@@ -7,7 +7,7 @@
 
 // This includes the function implementations and only has to be done once per
 // translation unit
-#define CLAGS_IMPLEMENTATION
+
 #include "../clags.h"
 
 // Declare argument variables with optional default values

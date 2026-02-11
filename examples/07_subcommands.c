@@ -6,7 +6,6 @@
 
 #include <stdio.h>
 
-#define CLAGS_IMPLEMENTATION
 #include "../clags.h"
 
 // Global help flag

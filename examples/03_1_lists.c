@@ -7,7 +7,6 @@
 
 #include <stdio.h>
 
-#define CLAGS_IMPLEMENTATION
 #include "../clags.h"
 
 bool help = false;

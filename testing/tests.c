@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#define CLAGS_IMPLEMENTATION
 #include "../clags.h"
 
 clags_options_t global_options = {
