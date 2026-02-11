@@ -6,6 +6,9 @@ const warning_flags: []const []const u8 = &.{
     "-Wextra",
     "-Wpedantic",
     "-Werror",
+    "-fstack-protector-strong",
+    "-D_FORTIFY_SOURCE=3",
+    "-fPIE",
 };
 
 const debug_warning_flags: []const []const u8 = &.{
@@ -14,6 +17,9 @@ const debug_warning_flags: []const []const u8 = &.{
     "-Wextra",
     "-Wpedantic",
     "-Werror",
+    "-fstack-protector-strong",
+    "-D_FORTIFY_SOURCE=3",
+    "-fPIE",
     "-fsanitize=address,undefined,leak",
     "-fno-omit-frame-pointer",
 };
@@ -195,6 +201,9 @@ fn addCExecutable(b: *std.Build, options: CExecutableOptions) *std.Build.Step.Co
 
     if (options.optimize == .Debug) {
         addDebugSanitizers(exe.root_module, options.target.result);
+    }
+    if (options.target.result.os.tag == .linux) {
+        exe.pie = true;
     }
 
     if (options.link_math) {

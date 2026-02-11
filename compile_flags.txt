@@ -4,4 +4,7 @@
 -Wextra
 -Wpedantic
 -Werror
+-fstack-protector-strong
+-D_FORTIFY_SOURCE=3
+-fPIE
 -I.

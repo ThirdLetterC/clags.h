@@ -11,7 +11,7 @@ A simple declarative command line argument parser, written in C.
 ## How to use
 `clags.h` is an stb-style library, which means a single header file
 and headers and implementations separated by the `CLAGS_IMPLEMENTATION` header guard.  
-You can compile the library with any compiler supporting C23 (`-std=c2x`). No further dependencies are required.
+You can compile the library with any compiler supporting C23 (`-std=c23`, or `-std=c2x` on older toolchains). No further dependencies are required.
 
 ### Example
 ```c

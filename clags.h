@@ -176,6 +176,17 @@
 #include <strings.h>
 #include <sys/stat.h>
 
+#if defined(__has_include)
+#if __has_include(<stdckdint.h>)
+#include <stdckdint.h>
+#define CLAGS_HAS_STDCKDINT 1
+#endif
+#endif
+
+#ifndef CLAGS_HAS_STDCKDINT
+#define CLAGS_HAS_STDCKDINT 0
+#endif
+
 #ifdef _WIN32
 #ifndef S_ISREG
 #define S_ISREG(m) (((m) & _S_IFREG) != 0)
@@ -758,7 +769,8 @@ void clags_usage(const char *program_name, clags_config_t *config);
                       or -1 if the subcommand was not found or either argument
   is nullptr
 */
-int clags_subcmd_index(clags_subcmds_t *subcmds, clags_subcmd_t *subcmd);
+[[nodiscard]] int clags_subcmd_index(clags_subcmds_t *subcmds,
+                                     clags_subcmd_t *subcmd);
 
 /*
   Get the index of a selected choice in the provided choice array.
@@ -772,7 +784,8 @@ int clags_subcmd_index(clags_subcmds_t *subcmds, clags_subcmd_t *subcmd);
                       or -1 if the choice was not found or either argument is
   nullptr
 */
-int clags_choice_index(clags_choices_t *choices, clags_choice_t *choice);
+[[nodiscard]] int clags_choice_index(clags_choices_t *choices,
+                                     clags_choice_t *choice);
 
 /*
   Duplicate a string if string duplication is enabled in the config,
@@ -828,7 +841,7 @@ void clags_list_free(clags_list_t *list);
   Returns:
     const char*     : a string description of the provided error type
 */
-const char *clags_error_description(clags_error_t error);
+[[nodiscard]] const char *clags_error_description(clags_error_t error);
 
 /* Logging */
 
@@ -870,13 +883,46 @@ static clags_verify_func_ptr_t clags__verify_funcs[] = {clags__types};
 static const char *clags__type_names[] = {clags__types};
 #undef X
 
+[[nodiscard]] static inline bool clags__checked_add_size(size_t *result,
+                                                         size_t lhs,
+                                                         size_t rhs) {
+#if CLAGS_HAS_STDCKDINT
+  return ckd_add(result, lhs, rhs);
+#elif defined(__GNUC__) || defined(__clang__)
+  return __builtin_add_overflow(lhs, rhs, result);
+#else
+  if (SIZE_MAX - lhs < rhs)
+    return true;
+  *result = lhs + rhs;
+  return false;
+#endif
+}
+
+[[nodiscard]] static inline bool clags__checked_mul_size(size_t *result,
+                                                         size_t lhs,
+                                                         size_t rhs) {
+#if CLAGS_HAS_STDCKDINT
+  return ckd_mul(result, lhs, rhs);
+#elif defined(__GNUC__) || defined(__clang__)
+  return __builtin_mul_overflow(lhs, rhs, result);
+#else
+  if (lhs != 0 && rhs > SIZE_MAX / lhs)
+    return true;
+  *result = lhs * rhs;
+  return false;
+#endif
+}
+
 [[nodiscard]] static inline char *clags__strdup(const char *string) {
   if (string == nullptr)
     return nullptr;
   size_t length = strlen(string);
-  char *new_string = CLAGS_CALLOC(length + 1, sizeof(char));
+  size_t alloc_size = 0;
+  clags_assert(!clags__checked_add_size(&alloc_size, length, (size_t)1),
+               "String duplication size overflow!");
+  char *new_string = CLAGS_CALLOC(alloc_size, sizeof(char));
   clags_assert(new_string != nullptr, "Out of memory!");
-  memcpy(new_string, string, length + 1);
+  memcpy(new_string, string, alloc_size);
   return new_string;
 }
 
@@ -892,16 +938,37 @@ static inline const char *clags__strchrnull(const char *string, char c) {
   return s;
 }
 
+[[nodiscard]] static inline bool clags__next_capacity(size_t current,
+                                                      size_t required,
+                                                      size_t *next) {
+  size_t capacity = current;
+  if (capacity == 0)
+    capacity = CLAGS_LIST_INIT_CAPACITY;
+  if (capacity == 0)
+    return false;
+  while (capacity < required) {
+    size_t doubled = 0;
+    if (clags__checked_mul_size(&doubled, capacity, (size_t)2))
+      return false;
+    capacity = doubled;
+  }
+  *next = capacity;
+  return true;
+}
+
 static inline void clags__sb_reserve(clags_sb_t *sb, size_t capacity) {
   if (sb->capacity >= capacity)
     return;
-  if (sb->capacity == 0)
-    sb->capacity = CLAGS_LIST_INIT_CAPACITY;
-  while (capacity > sb->capacity) {
-    sb->capacity *= 2;
-  }
-  sb->items = CLAGS_REALLOC(sb->items, sb->capacity * sizeof(*sb->items));
+  size_t new_capacity = 0;
+  clags_assert(clags__next_capacity(sb->capacity, capacity, &new_capacity),
+               "String builder capacity overflow!");
+  size_t alloc_size = 0;
+  clags_assert(
+      !clags__checked_mul_size(&alloc_size, new_capacity, sizeof(*sb->items)),
+               "String builder allocation overflow!");
+  sb->items = CLAGS_REALLOC(sb->items, alloc_size);
   clags_assert(sb->items != nullptr, "Out of memory!");
+  sb->capacity = new_capacity;
 }
 
 void clags_sb_appendf(clags_sb_t *sb, const char *format, ...) {
@@ -912,18 +979,28 @@ void clags_sb_appendf(clags_sb_t *sb, const char *format, ...) {
 
   int n = vsnprintf(nullptr, 0, format, args_copy);
   va_end(args_copy);
+  clags_assert(n >= 0, "Failed to format string!");
 
-  clags__sb_reserve(sb, sb->count + n + 1);
+  size_t formatted_len = (size_t)n;
+  size_t capacity = 0;
+  clags_assert(!clags__checked_add_size(&capacity, sb->count, formatted_len),
+               "String builder length overflow!");
+  clags_assert(!clags__checked_add_size(&capacity, capacity, (size_t)1),
+               "String builder length overflow!");
+  clags__sb_reserve(sb, capacity);
   char *start = sb->items + sb->count;
 
-  vsnprintf(start, n + 1, format, args);
+  vsnprintf(start, formatted_len + 1, format, args);
   va_end(args);
 
-  sb->count += n;
+  sb->count = capacity - 1;
 }
 
 void clags_sb_append_null(clags_sb_t *sb) {
-  clags__sb_reserve(sb, sb->count + 1);
+  size_t capacity = 0;
+  clags_assert(!clags__checked_add_size(&capacity, sb->count, (size_t)1),
+               "String builder length overflow!");
+  clags__sb_reserve(sb, capacity);
   sb->items[sb->count++] = '\0';
 }
 
@@ -997,10 +1074,20 @@ void clags_log_sb(clags_config_t *config, clags_log_level_t level,
     if (allocs->item_size == 0)
       allocs->item_size = sizeof(char *);
     if (allocs->count >= allocs->capacity) {
-      size_t new_capacity =
-          allocs->capacity ? allocs->capacity * 2 : CLAGS_LIST_INIT_CAPACITY;
-      allocs->items =
-          CLAGS_REALLOC(allocs->items, allocs->item_size * new_capacity);
+      size_t required_capacity = 0;
+      clags_assert(
+          !clags__checked_add_size(&required_capacity, allocs->count, (size_t)1),
+          "Allocation tracking capacity overflow!");
+      size_t new_capacity = 0;
+      clags_assert(
+          clags__next_capacity(allocs->capacity, required_capacity,
+                               &new_capacity),
+          "Allocation tracking capacity overflow!");
+      size_t alloc_size = 0;
+      clags_assert(
+          !clags__checked_mul_size(&alloc_size, allocs->item_size, new_capacity),
+          "Allocation tracking size overflow!");
+      allocs->items = CLAGS_REALLOC(allocs->items, alloc_size);
       clags_assert(allocs->items != nullptr, "Out of memory!");
       allocs->capacity = new_capacity;
     }
@@ -1455,15 +1542,27 @@ static inline bool clags__append_to_list(clags_config_t *config,
   clags_list_t *list = (clags_list_t *)variable;
   size_t item_size = list->item_size;
   if (list->count >= list->capacity) {
-    size_t new_capacity =
-        list->capacity == 0 ? CLAGS_LIST_INIT_CAPACITY : list->capacity * 2;
-    list->items = CLAGS_REALLOC(list->items, new_capacity * item_size);
+    size_t required_capacity = 0;
+    clags_assert(!clags__checked_add_size(&required_capacity, list->count,
+                                          (size_t)1),
+                 "List capacity overflow!");
+    size_t new_capacity = 0;
+    clags_assert(clags__next_capacity(list->capacity, required_capacity,
+                                      &new_capacity),
+                 "List capacity overflow!");
+    size_t alloc_size = 0;
+    clags_assert(!clags__checked_mul_size(&alloc_size, new_capacity, item_size),
+                 "List allocation size overflow!");
+    list->items = CLAGS_REALLOC(list->items, alloc_size);
     clags_assert(list->items != nullptr, "Out of memory!");
     list->capacity = new_capacity;
   }
+  size_t offset = 0;
+  clags_assert(!clags__checked_mul_size(&offset, item_size, list->count),
+               "List offset overflow!");
   char *ptr = (char *)list->items;
   if (clags__verify_funcs[value_type](config, arg_name, arg,
-                                      ptr + item_size * list->count, data)) {
+                                      ptr + offset, data)) {
     list->count++;
     return true;
   }
@@ -1498,7 +1597,10 @@ static inline void clags__set_flag(clags_config_t *config, clags_flag_t *flag) {
     *(clags_config_t **)flag->variable = config;
   } break;
   case Clags_CountFlag: {
-    *(size_t *)flag->variable += 1;
+    size_t count = *(size_t *)flag->variable;
+    clags_assert(!clags__checked_add_size(&count, count, (size_t)1),
+                 "Count flag overflow!");
+    *(size_t *)flag->variable = count;
   } break;
   case Clags_CallbackFlag: {
     clags__func_ptr_alias_t func_ptr = {.data = flag->variable};
@@ -2259,7 +2361,8 @@ void clags_usage(const char *program_name, clags_config_t *config) {
   CLAGS_FREE(temp_buffer);
 }
 
-int clags_subcmd_index(clags_subcmds_t *subcmds, clags_subcmd_t *subcmd) {
+[[nodiscard]] int clags_subcmd_index(clags_subcmds_t *subcmds,
+                                     clags_subcmd_t *subcmd) {
   if (!subcmds || !subcmd)
     return -1;
   for (size_t i = 0; i < subcmds->count; ++i) {
@@ -2269,7 +2372,8 @@ int clags_subcmd_index(clags_subcmds_t *subcmds, clags_subcmd_t *subcmd) {
   return -1;
 }
 
-int clags_choice_index(clags_choices_t *choices, clags_choice_t *choice) {
+[[nodiscard]] int clags_choice_index(clags_choices_t *choices,
+                                     clags_choice_t *choice) {
   if (!choices || !choice)
     return -1;
   for (size_t i = 0; i < choices->count; ++i) {
@@ -2313,7 +2417,7 @@ void clags_config_free(clags_config_t *config) {
   clags_config_free_allocs(config);
 }
 
-const char *clags_error_description(clags_error_t error) {
+[[nodiscard]] const char *clags_error_description(clags_error_t error) {
   switch (error) {
 #define X(type, desc)                                                          \
   case type:                                                                   \
