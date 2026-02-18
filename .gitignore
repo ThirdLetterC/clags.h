@@ -5,6 +5,7 @@ zig-out/
 # Project build artifacts
 testing/tests
 testing/tests.exe
+examples/0*
 
 # Native compilation/link artifacts
 *.o
