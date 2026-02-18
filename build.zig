@@ -189,6 +189,11 @@ fn addCExecutable(b: *std.Build, options: CExecutableOptions) *std.Build.Step.Co
         .optimize = options.optimize,
         .link_libc = true,
     });
+    module.addIncludePath(b.path("include"));
+    module.addCSourceFile(.{
+        .file = b.path("src/clags.c"),
+        .flags = c_flags,
+    });
     module.addCSourceFile(.{
         .file = b.path(options.source),
         .flags = c_flags,

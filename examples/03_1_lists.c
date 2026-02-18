@@ -7,7 +7,7 @@
 
 #include <stdio.h>
 
-#include "../clags.h"
+#include "clags/clags.h"
 
 bool help = false;
 // Use a typed initializer here if required

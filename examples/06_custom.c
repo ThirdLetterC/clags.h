@@ -3,9 +3,10 @@
       This example shows how to use custom verification functions.
 */
 
+#include <ctype.h>
 #include <stdio.h>
 
-#include "../clags.h"
+#include "clags/clags.h"
 
 // A custom verification function of type `clags_custom_verify_func_t`
 // Arguments provided by the parser:

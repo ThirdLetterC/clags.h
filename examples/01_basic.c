@@ -5,10 +5,7 @@
 
 #include <stdio.h>
 
-// This includes the function implementations and only has to be done once per
-// translation unit
-
-#include "../clags.h"
+#include "clags/clags.h"
 
 // Declare argument variables with optional default values
 const char *input_file = nullptr;

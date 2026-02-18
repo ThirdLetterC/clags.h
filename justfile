@@ -14,16 +14,16 @@ default: all
 all: examples-build tests-build
 
 examples-build:
-    @for src in examples/*.c; do exe="${src%.c}"; {{cc}} {{base_cflags}} -o "$exe" "$src" {{ld_hard}}; done
+    @for src in examples/*.c; do exe="${src%.c}"; {{cc}} {{base_cflags}} -Iinclude -o "$exe" "$src" src/clags.c {{ld_hard}}; done
 
 examples-debug:
-    @for src in examples/*.c; do exe="${src%.c}"; {{cc}} {{base_cflags}} -g3 {{san}} -o "$exe" "$src" {{san}} {{ld_hard}}; done
+    @for src in examples/*.c; do exe="${src%.c}"; {{cc}} {{base_cflags}} -Iinclude -g3 {{san}} -o "$exe" "$src" src/clags.c {{san}} {{ld_hard}}; done
 
 tests-build:
-    {{cc}} {{base_cflags}} -o testing/tests testing/tests.c -lm {{ld_hard}}
+    {{cc}} {{base_cflags}} -Iinclude -o testing/tests testing/tests.c src/clags.c -lm {{ld_hard}}
 
 tests-debug:
-    {{cc}} {{base_cflags}} -g3 {{san}} -o testing/tests testing/tests.c -lm {{san}} {{ld_hard}}
+    {{cc}} {{base_cflags}} -Iinclude -g3 {{san}} -o testing/tests testing/tests.c src/clags.c -lm {{san}} {{ld_hard}}
 
 test: tests-build
     ./testing/tests
@@ -44,7 +44,7 @@ zig-test:
     zig build test
 
 format:
-    clang-format -i clags.h examples/*.c testing/tests.c
+    clang-format -i include/clags/clags.h src/clags.c examples/*.c testing/tests.c
 
 clean:
     rm -f {{examples}} testing/tests

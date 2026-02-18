@@ -5,7 +5,7 @@
 
 #include <stdio.h>
 
-#include "../clags.h"
+#include "clags/clags.h"
 
 const char *input_file = nullptr;
 // `clags_fsize_t` is just a typedef of uint64_t

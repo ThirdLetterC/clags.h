@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../clags.h"
+#include "clags/clags.h"
 
 clags_options_t global_options = {
     .min_log_level = Clags_NoLogs,

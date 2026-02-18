@@ -6,7 +6,7 @@
 
 #include <stdio.h>
 
-#include "../clags.h"
+#include "clags/clags.h"
 
 // Global help flag
 // since the help flag can be set from multiple subcommands, we can track the

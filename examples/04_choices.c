@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "../clags.h"
+#include "clags/clags.h"
 
 char *input = nullptr;
 char *algorithm = nullptr;

@@ -1,4 +1,4 @@
-# clags.h
+# clags
 A simple declarative command line argument parser, written in C.
 
 ## Features
@@ -9,18 +9,17 @@ A simple declarative command line argument parser, written in C.
 - Native recursive subcommands
 
 ## How to use
-`clags.h` is an stb-style library, which means a single header file
-and headers and implementations separated by the `CLAGS_IMPLEMENTATION` header guard.  
-You can compile the library with any compiler supporting C23 (`-std=c23`, or `-std=c2x` on older toolchains). No further dependencies are required.
+`clags` ships as a regular C library with:
+- public header: `include/clags/clags.h`
+- implementation unit: `src/clags.c`
+
+Compile it with any compiler supporting C23 (`-std=c23`, or `-std=c2x` on older toolchains). No further dependencies are required.
 
 ### Example
 ```c
 #include <stdio.h>
 
-// This includes the function implementations and only has to be done once
-// per translation unit.
-
-#include "clags.h"
+#include "clags/clags.h"
 
 // Declare argument variables with optional default values
 const char *input_file = nullptr;

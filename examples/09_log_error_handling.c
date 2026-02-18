@@ -9,7 +9,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 
-#include "../clags.h"
+#include "clags/clags.h"
 
 /*
   A custom log handler, called by `clags_log` internally

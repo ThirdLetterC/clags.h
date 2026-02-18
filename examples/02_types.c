@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "../clags.h"
+#include "clags/clags.h"
 
 char *input_file = nullptr;
 char *output_file = "a.out";
@@ -21,7 +21,8 @@ clags_arg_t args[] = {
     clags_option('o', "output", &output_file, "FILE", "the file to write"),
 
     // to add type verification to an argument, simply set the `value_type`
-    // field for a list of all available types, see `clags__types` in clags.h
+    // field for a list of all available types, see `clags__types` in
+    // include/clags/clags.h
     // Note: it is the user's responsibility to provide a variable pointer
     // matching the type specified
     //       so here, &quality is expected to be uint8_t*
