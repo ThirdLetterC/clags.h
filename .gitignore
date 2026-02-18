@@ -5,6 +5,7 @@ zig-out/
 # Project build artifacts
 testing/tests
 testing/tests.exe
+examples/0*
 
 # Native compilation/link artifacts
 *.o
@@ -38,3 +39,4 @@ compile_commands.json
 *.swp
 *.swo
 *~
+_codeql_detected_source_root

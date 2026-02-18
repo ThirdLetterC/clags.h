@@ -26,8 +26,7 @@
   SOFTWARE.
 */
 
-#ifndef CLAGS_H
-#define CLAGS_H
+#pragma once
 
 #include <float.h>
 #include <inttypes.h>
@@ -713,5 +712,3 @@ void clags_log_sb(clags_config_t *config, clags_log_level_t level,
 void clags_sb_appendf(clags_sb_t *sb, const char *format, ...);
 void clags_sb_append_null(clags_sb_t *sb);
 void clags_sb_free(clags_sb_t *sb);
-
-#endif // CLAGS_H
