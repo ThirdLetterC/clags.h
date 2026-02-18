@@ -737,9 +737,30 @@ void clags_sb_free(clags_sb_t *sb);
 static clags_verify_func_ptr_t clags__verify_funcs[] = {clags__types};
 #undef X
 
+[[nodiscard]] static inline bool clags__is_valid_value_type(
+    clags_value_type_t value_type) {
+  return (size_t)value_type < (sizeof(clags__verify_funcs) /
+                               sizeof(*clags__verify_funcs));
+}
+
 #define X(type, func, name) [type] = name,
 static const char *clags__type_names[] = {clags__types};
 #undef X
+
+#ifndef CLAGS_MAX_PARSE_DEPTH
+#define CLAGS_MAX_PARSE_DEPTH 64
+#endif // CLAGS_MAX_PARSE_DEPTH
+
+[[nodiscard]] static inline bool clags__has_config_cycle(
+    const clags_config_t *parent, const clags_config_t *candidate) {
+  for (const clags_config_t *current = parent; current != nullptr;
+       current = current->parent) {
+    if (current == candidate) {
+      return true;
+    }
+  }
+  return false;
+}
 
 [[nodiscard]] static inline bool
 clags__checked_add_size(size_t *result, size_t lhs, size_t rhs) {
@@ -1393,6 +1414,12 @@ static inline bool clags__append_to_list(clags_config_t *config,
                                          clags_value_type_t value_type,
                                          const char *arg_name, const char *arg,
                                          void *variable, void *data) {
+  if (!clags__is_valid_value_type(value_type)) {
+    clags_log(config, Clags_Error,
+              "Invalid value type %d for argument '%s'!", (int)value_type,
+              arg_name);
+    return false;
+  }
   clags_list_t *list = (clags_list_t *)variable;
   size_t item_size = list->item_size;
   if (list->count >= list->capacity) {
@@ -1427,6 +1454,13 @@ static inline bool clags__set_arg(clags_config_t *config,
                                   clags_value_type_t value_type,
                                   const char *arg_name, const char *arg,
                                   void *variable, void *data, bool is_list) {
+  if (!clags__is_valid_value_type(value_type)) {
+    clags_log(config, Clags_Error,
+              "Invalid value type %d for argument '%s'!", (int)value_type,
+              arg_name);
+    config->error = Clags_Error_InvalidValue;
+    return false;
+  }
   bool result;
   if (is_list) {
     result = clags__append_to_list(config, value_type, arg_name, arg, variable,
@@ -1468,6 +1502,12 @@ static inline void clags__set_flag(clags_config_t *config, clags_flag_t *flag) {
 
 bool clags__validate_positional(clags_config_t *config,
                                 clags_positional_t pos) {
+  if (!clags__is_valid_value_type(pos.value_type)) {
+    clags_log(config, Clags_ConfigError,
+              "invalid value type for positional argument '%s': %d!",
+              pos.arg_name, (int)pos.value_type);
+    return false;
+  }
   switch (pos.value_type) {
   case Clags_Subcmd: {
     if (pos.subcmds == nullptr) {
@@ -1503,6 +1543,15 @@ bool clags__validate_positional(clags_config_t *config,
 }
 
 bool clags__validate_option(clags_config_t *config, clags_option_t opt) {
+  if (!clags__is_valid_value_type(opt.value_type)) {
+    char short_flag_name[2] = {(char)opt.short_flag, '\0'};
+    clags_log(config, Clags_ConfigError,
+              "invalid value type for option argument '%s': %d!",
+              opt.long_flag ? opt.long_flag : (opt.short_flag ? short_flag_name
+                                                             : "unknown"),
+              (int)opt.value_type);
+    return false;
+  }
   char buf[3] = {'-', '\0', '\0'};
   const char *name =
       opt.long_flag
@@ -1745,10 +1794,28 @@ void clags__subcommand_path_usage(const char *program_name,
   }
 }
 
-[[nodiscard]] clags_config_t *clags_parse(int argc, char **argv,
-                                          clags_config_t *config) {
+[[nodiscard]] static clags_config_t *clags__parse_internal(size_t argc,
+                                                          char **argv,
+                                                          clags_config_t *config,
+                                                          size_t depth) {
   if (config == nullptr || config->args == nullptr || config->invalid)
     return nullptr;
+  if (argv == nullptr || argc == 0) {
+    config->error = Clags_Error_InvalidOption;
+    return config;
+  }
+  if (argv[0] == nullptr) {
+    clags_log(config, Clags_Error, "Missing program name in parser input");
+    config->error = Clags_Error_InvalidOption;
+    return config;
+  }
+  if (depth > CLAGS_MAX_PARSE_DEPTH) {
+    clags_log(config, Clags_Error,
+              "Subcommand nesting too deep: exceeded maximum parser depth of %zu",
+              (size_t)CLAGS_MAX_PARSE_DEPTH);
+    config->error = Clags_Error_InvalidOption;
+    return config;
+  }
   // validate the configuration, exit and mark config as invalid on fatal error
   if (!clags__validate_config(config)) {
     config->invalid = true;
@@ -1784,6 +1851,11 @@ void clags__subcommand_path_usage(const char *program_name,
   size_t required_count = 0;
   for (size_t index = 1; index < (size_t)argc; ++index) {
     char *arg = argv[index];
+    if (arg == nullptr) {
+      clags_log(config, Clags_Error, "Invalid null argument at position %zu!", index);
+      config->error = Clags_Error_InvalidOption;
+      clags_return_defer(config);
+    }
 
     // toggle option and flag parsing based on '--'
     if (strcmp(arg, "--") == 0) {
@@ -1829,19 +1901,25 @@ void clags__subcommand_path_usage(const char *program_name,
           char *value = arg + long_flag_len;
           if (*value == '\0') {
             // get value from the next not-ignored argument
-            while (true) {
-              if (argc - index <= 1) {
-                clags_log(config, Clags_Error,
-                          "Option flag %s requires argument!", arg);
-                config->error = Clags_Error_InvalidOption;
-                clags_return_defer(config);
-              }
-              value = argv[++index];
-              if (!ignore_prefix ||
-                  strncmp(value, ignore_prefix, ignore_prefix_len) != 0)
-                break;
-              arguments_ignored = true;
-            }
+                while (true) {
+                  if (argc - index <= 1) {
+                    clags_log(config, Clags_Error,
+                              "Option flag %s requires argument!", arg);
+                    config->error = Clags_Error_InvalidOption;
+                    clags_return_defer(config);
+                  }
+                  value = argv[++index];
+                  if (value == nullptr) {
+                    clags_log(config, Clags_Error,
+                              "Invalid null argument at position %zu!", index);
+                    config->error = Clags_Error_InvalidOption;
+                    clags_return_defer(config);
+                  }
+                  if (!ignore_prefix ||
+                      strncmp(value, ignore_prefix, ignore_prefix_len) != 0)
+                    break;
+                  arguments_ignored = true;
+                }
           } else if (*value++ == '=') {
             if (*value == '\0') {
               clags_log(config, Clags_Error,
@@ -1891,19 +1969,25 @@ void clags__subcommand_path_usage(const char *program_name,
           if (*c == opt.short_flag) {
             char *value = c + 1;
             if (*value == '\0') {
-              while (true) {
-                if (argc - index <= 1) {
-                  clags_log(config, Clags_Error,
-                            "Option flag %s requires argument!", arg);
-                  config->error = Clags_Error_InvalidOption;
-                  clags_return_defer(config);
+                while (true) {
+                  if (argc - index <= 1) {
+                    clags_log(config, Clags_Error,
+                              "Option flag %s requires argument!", arg);
+                    config->error = Clags_Error_InvalidOption;
+                    clags_return_defer(config);
+                  }
+                  value = argv[++index];
+                  if (value == nullptr) {
+                    clags_log(config, Clags_Error,
+                              "Invalid null argument at position %zu!", index);
+                    config->error = Clags_Error_InvalidOption;
+                    clags_return_defer(config);
+                  }
+                  if (!ignore_prefix ||
+                      strncmp(value, ignore_prefix, ignore_prefix_len) != 0)
+                    break;
+                  arguments_ignored = true;
                 }
-                value = argv[++index];
-                if (!ignore_prefix ||
-                    strncmp(value, ignore_prefix, ignore_prefix_len) != 0)
-                  break;
-                arguments_ignored = true;
-              }
             }
             if (!clags__set_arg(config, opt.value_type, arg, value,
                                 opt.variable, opt._data, opt.is_list))
@@ -1954,8 +2038,19 @@ void clags__subcommand_path_usage(const char *program_name,
           clags_return_defer(config);
         if (subcmd == nullptr)
           clags_return_defer(nullptr);
+        clags_config_t *child_config = (*subcmd)->config;
+        if (child_config != nullptr) {
+          if (clags__has_config_cycle(config, child_config)) {
+            clags_log(config, Clags_Error,
+                      "Cycle detected while selecting subcommand '%s'!", arg);
+            config->error = Clags_Error_InvalidOption;
+            clags_return_defer(config);
+          }
+          child_config->parent = config;
+        }
         clags_return_defer(
-            clags_parse((int)argc - index, argv + index, (*subcmd)->config));
+            clags__parse_internal((size_t)argc - index, argv + index, child_config,
+                                  depth + 1));
       }
       if (pos.is_list) {
         in_list = true;
@@ -2007,6 +2102,17 @@ defer:
   CLAGS_FREE(option);
   CLAGS_FREE(flags);
   return result;
+}
+
+[[nodiscard]] clags_config_t *clags_parse(int argc, char **argv,
+                                          clags_config_t *config) {
+  if (argc <= 0 || config == nullptr || argv == nullptr) {
+    if (config != nullptr) {
+      config->error = Clags_Error_InvalidOption;
+    }
+    return config;
+  }
+  return clags__parse_internal((size_t)argc, argv, config, 1);
 }
 
 static void clags__format_lhs(char *buffer, size_t buf_size, char short_flag,
@@ -2067,6 +2173,11 @@ static void clags__format_lhs(char *buffer, size_t buf_size, char short_flag,
     max_long = 0;
 
   if (max_long > 0) {
+    const size_t max_trimmed_len = 128 - 1;
+    if (max_long > max_trimmed_len) {
+      max_long = max_trimmed_len;
+    }
+
     char trimmed_long[128] = {0};
     strncpy(trimmed_long, long_flag, max_long);
     if (max_long >= 2) {
