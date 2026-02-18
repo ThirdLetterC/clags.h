@@ -193,6 +193,96 @@ void test_subcommand() {
   assert(config.error == Clags_Error_Ok);
 }
 
+// 9. Unsigned option rejects signed value with leading whitespace
+void test_uint64_rejects_signed_whitespace() {
+  uint64_t size = 0;
+
+  clags_config_t config = {
+      .args = (clags_arg_t[]){{.type = Clags_Option,
+                               .opt = {.long_flag = "size",
+                                       .value_type = Clags_UInt64,
+                                       .variable = &size}}},
+      .args_count = 1,
+      .options = global_options,
+  };
+
+  char *argv[] = {"prog", "--size", " -1"};
+  int argc = 3;
+
+  clags_config_t *parse_result = clags_parse(argc, argv, &config);
+  assert(parse_result == &config);
+  assert(config.error == Clags_Error_InvalidValue);
+  assert(size == 0);
+}
+
+// 10. Empty integer values are invalid
+void test_empty_integer_rejected() {
+  int32_t num = 0;
+
+  clags_config_t config = {
+      .args = (clags_arg_t[]){{.type = Clags_Option,
+                               .opt = {.long_flag = "num",
+                                       .value_type = Clags_Int32,
+                                       .variable = &num}}},
+      .args_count = 1,
+      .options = global_options,
+  };
+
+  char *argv[] = {"prog", "--num", ""};
+  int argc = 3;
+
+  clags_config_t *parse_result = clags_parse(argc, argv, &config);
+  assert(parse_result == &config);
+  assert(config.error == Clags_Error_InvalidValue);
+  assert(num == 0);
+}
+
+// 11. Non-finite time values are invalid
+void test_time_nan_rejected() {
+  clags_time_t duration = 0;
+
+  clags_config_t config = {
+      .args = (clags_arg_t[]){{.type = Clags_Option,
+                               .opt = {.long_flag = "duration",
+                                       .value_type = Clags_TimeNS,
+                                       .variable = &duration}}},
+      .args_count = 1,
+      .options = global_options,
+  };
+
+  char *argv[] = {"prog", "--duration", "nan"};
+  int argc = 3;
+
+  clags_config_t *parse_result = clags_parse(argc, argv, &config);
+  assert(parse_result == &config);
+  assert(config.error == Clags_Error_InvalidValue);
+  assert(duration == 0);
+}
+
+// 12. Misconfigured list item sizes fail safely
+void test_list_item_size_mismatch_rejected() {
+  clags_list_t ints = clags_custom_list(sizeof(uint8_t));
+
+  clags_config_t config = {
+      .args = (clags_arg_t[]){{.type = Clags_Positional,
+                               .pos = {.arg_name = "ints",
+                                       .value_type = Clags_Int32,
+                                       .variable = &ints,
+                                       .is_list = true}}},
+      .args_count = 1,
+      .options = global_options,
+  };
+
+  char *argv[] = {"prog", "1"};
+  int argc = 2;
+
+  clags_config_t *parse_result = clags_parse(argc, argv, &config);
+  assert(parse_result == &config);
+  assert(config.error == Clags_Error_InvalidValue);
+  assert(ints.count == 0);
+  clags_list_free(&ints);
+}
+
 int main() {
   test_int_option();
   printf("- Test 'int option' passed!\n");
@@ -210,6 +300,14 @@ int main() {
   printf("- Test 'invalid value' passed!\n");
   test_subcommand();
   printf("- Test 'subcommand' passed!\n");
+  test_uint64_rejects_signed_whitespace();
+  printf("- Test 'unsigned whitespace sign rejection' passed!\n");
+  test_empty_integer_rejected();
+  printf("- Test 'empty integer rejection' passed!\n");
+  test_time_nan_rejected();
+  printf("- Test 'time nan rejection' passed!\n");
+  test_list_item_size_mismatch_rejected();
+  printf("- Test 'list item-size mismatch rejection' passed!\n");
 
   printf("\nAll tests passed!\n");
   return 0;
